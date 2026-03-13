@@ -56,8 +56,23 @@ public class PostsController : ControllerBase
     public async Task<IActionResult> GetList()
     {
         var list = await _db.Posts
-            .Where(x => !x.IsDeleted)
-            .OrderByDescending(x => x.CreatedAt)
+            .Where(p => !p.IsDeleted)
+            .Join(
+                _db.Users,
+                post => post.UserId,
+                user => user.Id,
+                (post, user) => new
+                {
+                    id = post.Id,
+                    content = post.Content,
+                    createdAt = post.CreatedAt,
+                    updatedAt = post.UpdatedAt,
+                    authorUserId = user.Id,
+                    authorDisplayName = user.DisplayName,
+                    authorProfileImageUrl = user.ProfileImageUrl
+                }
+            )
+            .OrderByDescending(x => x.createdAt)
             .ToListAsync();
 
         return Ok(list);

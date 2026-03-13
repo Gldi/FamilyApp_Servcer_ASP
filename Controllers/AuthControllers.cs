@@ -23,7 +23,7 @@ public class AuthController : ControllerBase
         _config = config;
     }
 
-    public record SignupRequest(string Email, string Password);
+    public record SignupRequest(string Email, string Password, string? DisplayName);
     
     /// <summary>
     /// 회원가입
@@ -40,7 +40,8 @@ public class AuthController : ControllerBase
         var user = new User
         {
             Email = request.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            DisplayName = request.DisplayName
         };
 
         _db.Users.Add(user);
@@ -103,15 +104,29 @@ public class AuthController : ControllerBase
     /// <returns></returns>
     [Authorize]
     [HttpGet("me")]
-    public IActionResult Me()
+    public async Task<IActionResult> Me()
     {
-        var userId = User.FindFirst("uid")?.Value;
-        var email = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value;
+        var userIdValue = User.FindFirst("uid")?.Value
+                       ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (string.IsNullOrEmpty(userIdValue))
+            return Unauthorized();
+
+        var userId = Guid.Parse(userIdValue);
+
+        var user = await _db.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == userId);
+
+        if (user == null)
+            return NotFound("사용자를 찾을 수 없습니다.");
 
         return Ok(new
         {
-            UserId = userId,
-            Email = email
+            userId = user.Id,
+            email = user.Email,
+            displayName = user.DisplayName,
+            profileImageUrl = user.ProfileImageUrl
         });
     }
 
